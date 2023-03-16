@@ -26,6 +26,12 @@ Drag 'n Drop replace for qb-garages.
 - Drag the downloaded qb-garages folder into the [qb] folder.
 - Apply patch1.sql to your DB
 
+### If you want my qb-phone edited just Drag 'n Drop replace for qb-phone: https://github.com/xn0tBad/qb-phone
+
+
+### If you want to modify yours:
+
+
 1. In qb-phone/client/garage.lua replace RegisterNUICallback('gps-vehicle-garage', function(data, cb) with: 
 ``` 
 RegisterNUICallback('gps-vehicle-garage', function(data, cb)
