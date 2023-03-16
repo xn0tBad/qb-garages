@@ -7,7 +7,7 @@ ALTER TABLE `player_vehicles`
 ADD COLUMN `damage` VARCHAR(1500) NULL DEFAULT NULL AFTER `garage`;
 
 -- Car coords
-ALTER TABLE `player_vehicles2`
+ALTER TABLE `player_vehicles`
 ADD x varchar(25),
 add y varchar(25),
 add z varchar(25),
