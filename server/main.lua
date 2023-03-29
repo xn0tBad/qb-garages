@@ -94,6 +94,16 @@ local function GetVehicles(citizenid, garageName, state, cb)
     cb(result)
 end
 
+local function GetVehiclesSeguro(citizenid, cb)
+    local result = nil
+    
+        result = MySQL.Sync.fetchAll('SELECT * FROM player_vehicles WHERE citizenid = @citizenid', {
+            ['@citizenid'] = citizenid
+        })
+    
+    cb(result)
+end
+
 local function GetDepotVehicles(citizenid, state, garage, cb)
     local result = MySQL.Sync.fetchAll('SELECT * FROM player_vehicles WHERE citizenid = @citizenid AND (state = @state OR garage = @garage OR garage IS NULL)', {
         ['@citizenid'] = citizenid,
@@ -201,6 +211,32 @@ QBCore.Functions.CreateCallback("qb-garage:server:GetGarageVehicles", function(s
             end
         end)
     end
+end)
+
+QBCore.Functions.CreateCallback("nb-garage:server:GetGarageVehiclesSeguro", function(source, cb, garage, garageType, category)
+    local src = source
+    local pData = QBCore.Functions.GetPlayer(src)
+    
+        GetVehiclesSeguro(pData.PlayerData.citizenid, function(result)
+            local vehs = {}
+            if result[1] then
+                for _, vehicle in pairs(result) do
+                    if vehicle.parkingspot then
+                        local spot = json.decode(vehicle.parkingspot)
+                        if spot and spot.x then
+                            vehicle.parkingspot = vector3(spot.x, spot.y, spot.z)
+                        end
+                    end
+                    if vehicle.damage then
+                        vehicle.damage = json.decode(vehicle.damage)
+                    end
+                    vehs[#vehs + 1] = vehicle
+                end
+                cb(vehs)
+            else
+                cb(nil)
+            end
+        end)
 end)
 
 
@@ -367,6 +403,31 @@ RegisterNetEvent('qb-garage:server:PayDepotPrice', function(data)
     end)
 end)
 
+RegisterNetEvent('qb-garage:server:PayDepotPriceSeguro', function(data)
+    local src = source
+    local Player = QBCore.Functions.GetPlayer(src)
+    local cashBalance = Player.PlayerData.money["cash"]
+    local bankBalance = Player.PlayerData.money["bank"]
+    
+    local vehicle = data.vehicle
+
+     MySQL.query('SELECT * FROM player_vehicles WHERE plate = ?', {vehicle.plate}, function(result)
+        if result[1] then
+            local vehicle = result[1]
+            local depotPrice = Config.InsurancePrice
+            if cashBalance >= depotPrice then
+                Player.Functions.RemoveMoney("cash", depotPrice, "paid-depot")
+                MySQL.update('UPDATE player_vehicles set state = 0, garage = "pillboxgarage" where plate = ?',{vehicle.plate})
+            elseif bankBalance >= depotPrice then
+                Player.Functions.RemoveMoney("bank", depotPrice, "paid-depot")
+                MySQL.update('UPDATE player_vehicles set state = 0, garage = "pillboxgarage" where plate = ?',{vehicle.plate})
+            else
+                TriggerClientEvent('QBCore:Notify', src, Lang:t("error.not_enough"), 'error')
+            end
+        end
+    end)
+end)
+
 
 --External Calls
 --Call from qb-vehiclesales
@@ -376,6 +437,16 @@ QBCore.Functions.CreateCallback("qb-garage:server:checkVehicleOwner", function(s
      MySQL.query('SELECT * FROM player_vehicles WHERE plate = ? AND citizenid = ?',{plate, pData.PlayerData.citizenid}, function(result)
         if result[1] then
             cb(true, result[1].balance)
+        else
+            cb(false)
+        end
+    end)
+end)
+
+QBCore.Functions.CreateCallback("qb-garage:server:checkVehicleIsOwned", function(source, cb, plate)
+     MySQL.query('SELECT * FROM player_vehicles WHERE plate = ?',{plate}, function(result)
+        if result[1] then
+            cb(true)
         else
             cb(false)
         end

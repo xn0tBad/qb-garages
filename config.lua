@@ -54,6 +54,9 @@ Config = Config or {}
     },
 ]]
 
+-- n0tbad news --
+Config.InsurancePrice = 500
+
 -- NEW ---
 Config.SharedHouseGarage = true -- Allow shared house garages, if false, the player can only access their own vehicles
 -- NEW ---

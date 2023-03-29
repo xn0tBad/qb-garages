@@ -101,36 +101,81 @@ local function PublicGarage(garageName, type)
     local categories = garage.vehicleCategories
     local superCategory = GetSuperCategoryFromCategories(categories)
 
-    exports['qb-menu']:openMenu({
-        {
-            header = garage.label,
-            isMenuHeader = true,
-        },
-        {
-            header = Lang:t("menu.text.vehicles"),
-            txt = Lang:t("menu.text.vehicles"),
-            params = {
-                event = "qb-garages:client:GarageMenu",
-                args = {
-                    garageId = garageName,
-                    garage = garage,
-                    categories = categories,
-                    header =  Lang:t("menu.header."..garage.type.."_"..superCategory, {value = garage.label}),
-                    superCategory = superCategory,
-                    type = type
+    if type ~= "depot" then 
+        exports['qb-menu']:openMenu({
+            {
+                header = garage.label,
+                isMenuHeader = true,
+            },
+            {
+                header = Lang:t("menu.text.vehicles"),
+                txt = Lang:t("menu.text.vehicles"),
+                params = {
+                    event = "qb-garages:client:GarageMenu",
+                    args = {
+                        garageId = garageName,
+                        garage = garage,
+                        categories = categories,
+                        header =  Lang:t("menu.header."..garage.type.."_"..superCategory, {value = garage.label}),
+                        superCategory = superCategory,
+                        type = type
+                    }
                 }
-            }
-        },
-        {
-            header = Lang:t("menu.leave.car"),
-            txt = "",
-            params = {
-                event = 'qb-menu:closeMenu'
-            }
-        },
-    })
+            },
+            {
+                header = Lang:t("menu.leave.car"),
+                txt = "",
+                params = {
+                    event = 'qb-menu:closeMenu'
+                }
+            },
+        })
+    else
+        exports['qb-menu']:openMenu({
+            {
+                header = garage.label,
+                isMenuHeader = true,
+            },
+            {
+                header = Lang:t("menu.text.vehicles"),
+                txt = Lang:t("menu.text.vehicles"),
+                params = {
+                    event = "qb-garages:client:GarageMenu",
+                    args = {
+                        garageId = garageName,
+                        garage = garage,
+                        categories = categories,
+                        header =  Lang:t("menu.header."..garage.type.."_"..superCategory, {value = garage.label}),
+                        superCategory = superCategory,
+                        type = type
+                    }
+                }
+            },
+            {
+                header = "Seguro",
+                txt = "Pedir ao seguro para te trazer o carro",
+                params = {
+                    event = "nb-garages:client:SeguroGarageMenu",
+                    args = {
+                        garageId = garageName,
+                        garage = garage,
+                        categories = categories,
+                        header =  Lang:t("menu.header."..garage.type.."_"..superCategory, {value = garage.label}),
+                        superCategory = superCategory,
+                        type = type
+                    }
+                }
+            },
+            {
+                header = Lang:t("menu.leave.car"),
+                txt = "",
+                params = {
+                    event = 'qb-menu:closeMenu'
+                }
+            },
+        })
+    end
 end
-
 local function MenuHouseGarage()
     local superCategory = GetSuperCategoryFromCategories(Config.HouseGarageCategories)
     exports['qb-menu']:openMenu({
@@ -829,6 +874,72 @@ RegisterNetEvent("qb-garages:client:GarageMenu", function(data)
     end, garageId, type, superCategory)
 end)
 
+RegisterNetEvent("nb-garages:client:SeguroGarageMenu", function(data)
+    local type = data.type
+    local garageId = data.garageId
+    local garage = data.garage
+    local categories = data.categories and data.categories or {'car'}
+    local header = data.header
+    local superCategory = data.superCategory
+    local leave
+
+    leave = Lang:t("menu.leave." .. superCategory)
+
+    QBCore.Functions.TriggerCallback("nb-garage:server:GetGarageVehiclesSeguro", function(result)
+        if result == nil then
+            QBCore.Functions.Notify(Lang:t("error.no_vehicles"), "error", 5000)
+        else
+            local MenuGarageOptions = {
+                {
+                    header = header,
+                    isMenuHeader = true
+                },
+            }
+            result = result and result or {}
+            for k, v in pairs(result) do
+                local enginePercent = Round(v.engine / 10, 0)
+                local bodyPercent = Round(v.body / 10, 0)
+                local currentFuel = v.fuel
+                local vehData = QBCore.Shared.Vehicles[v.vehicle]
+                local vname = vehData.name or 'Vehicle does not exist'
+                
+                if v.state == 0 then
+                    v.state = Lang:t("status.out")
+                elseif v.state == 1 then
+                    v.state = Lang:t("status.garaged")
+                elseif v.state == 2 then
+                    v.state = Lang:t("status.impound")
+                end
+
+
+                    MenuGarageOptions[#MenuGarageOptions+1] = {
+                        header = Lang:t('menu.header.depot', {value = vname, value2 = Config.InsurancePrice }),
+                        txt = Lang:t('menu.text.depot', {value = v.plate, value2 = currentFuel, value3 = enginePercent, value4 = bodyPercent, value5 = v.state}),
+                        params = {
+                            event = "nb-garages:client:TakeOutDepotSeguro",
+                            args = {
+                                vehicle = v,
+                                vehicleModel = v.vehicle,
+                                type = type,
+                                garage = "impoundlot",
+                            }
+                        }
+                    }
+                
+            end
+
+            MenuGarageOptions[#MenuGarageOptions+1] = {
+                header = leave,
+                txt = "",
+                params = {
+                    event = "qb-menu:closeMenu",
+                }
+            }
+            exports['qb-menu']:openMenu(MenuGarageOptions)
+        end
+    end, garageId, type, superCategory)
+end)
+
 RegisterNetEvent('qb-garages:client:TakeOutGarage', function(data, cb)
     local garageType = data.type
     local vehicleModel = data.vehicleModel
@@ -922,6 +1033,19 @@ RegisterNetEvent('qb-garages:client:TakeOutDepot', function(data)
     else
         QBCore.Functions.Notify(Lang:t('error.not_impound'), "error", 5000)
     end
+end)
+
+RegisterNetEvent('nb-garages:client:TakeOutDepotSeguro', function(data)
+        local PlayerData = QBCore.Functions.GetPlayerData()
+        if PlayerData.money['cash'] >= Config.InsurancePrice or PlayerData.money['bank'] >= Config.InsurancePrice then
+            TriggerEvent("qb-garages:client:TakeOutGarage", data, function (veh)
+                if veh then
+                    TriggerServerEvent("qb-garage:server:PayDepotPriceSeguro", data)
+                end
+            end)
+        else
+            QBCore.Functions.Notify(Lang:t('error.not_enough'), "error", 5000)
+        end
 end)
 
 RegisterNetEvent('qb-garages:client:OpenHouseGarage', function()
@@ -1055,6 +1179,7 @@ RegisterNetEvent('QBCore:Client:OnJobUpdate', function(job)
 end)
 
 -- Threads
+--[[
 CreateThread(function()
     while true do
       	local ped = PlayerPedId()
@@ -1078,6 +1203,34 @@ CreateThread(function()
       	end
       	Wait(Sleep)
     end
+end)
+]]
+
+CreateThread(function() --Save vehicle data on real times
+	while (true) do
+		local veh = nil
+		local ped = PlayerPedId()
+		local pos = GetEntityCoords(ped)
+		local vehout, distance = QBCore.Functions.GetClosestVehicle(pos)    
+		if IsPedInAnyVehicle(ped) then
+			veh = GetVehiclePedIsIn(ped)
+		else
+			if NetworkGetEntityIsLocal(vehout) and distance < 4 then
+				veh = vehout
+			end
+		end
+		local vehpos = GetEntityCoords(veh)
+		local heading = GetEntityHeading(veh)
+		local plate = QBCore.Functions.GetPlate(veh)
+		if veh ~= nil and NetworkGetEntityIsNetworked(veh) and DoesEntityExist(veh) then
+			QBCore.Functions.TriggerCallback('qb-garage:server:checkVehicleIsOwned', function(hasowned)
+				if hasowned then					
+					SaveVehicleCoords(veh, vehpos, heading)
+				end
+			end, plate)
+		end
+		Wait(3000)
+	end
 end)
 
 CreateThread(function()
